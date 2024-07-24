@@ -1,0 +1,1 @@
+export const API_URL = 'https://api.myquran.com/v2/sholat'
