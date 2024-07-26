@@ -1,6 +1,10 @@
-export const isPrayerTime = (prayerTime: string): boolean => {
-    const now = new Date()
-    const [prayerHour, prayerMinute] = prayerTime.split(':').map(Number)
+export const getCurrentTime = (): Date => {
+    return new Date()
+}
 
-    return now.getHours() === prayerHour && now.getMinutes() === prayerMinute
+export const parseTime = (time: string): Date => {
+    const [hours, minutes] = time.split(':').map(Number)
+    const date = new Date()
+    date.setHours(hours!, minutes, 0, 0)
+    return date
 }
