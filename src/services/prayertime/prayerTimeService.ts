@@ -1,17 +1,22 @@
-import { ApiError } from "@/exceptions/ApiError"
-import { PrayerTime } from "@/models/types"
-import axios from "axios"
+import { ApiError } from '@/exceptions/ApiError'
+import { PrayerTime } from '@/models/types'
 
 class PrayerTimeService {
-
     constructor(private apiUrl: string) {}
 
-    public async fetchPrayerTimes(cityId: string, date: string): Promise<PrayerTime> {
+    public async fetchPrayerTimes(
+        cityId: string,
+        date: string
+    ): Promise<PrayerTime> {
         try {
-            const response = await axios.get(`${this.apiUrl}/jadwal/${cityId}/${date}`)
-            return response.data.data
-        } catch (error) {
-            throw new ApiError('Failed to fetch prayer time')
+            const res = await fetch(`${this.apiUrl}/jadwal/${cityId}/${date}`, {
+                method: 'GET',
+            })
+
+            const data = await res.json()
+            return data.data
+        } catch (err) {
+            throw new ApiError(`PrayerTimeService.fetchPrayerTimes: ${err}`)
         }
     }
 }
