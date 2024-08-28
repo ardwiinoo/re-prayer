@@ -20,3 +20,9 @@ export interface PrayerTime {
         date: string
     }
 }
+
+export interface Alarm {
+    prayerName: string
+    time: string
+    status: 'pending' | 'completed' | 'next day'
+}

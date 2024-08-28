@@ -1,27 +1,66 @@
-import { getCurrentTime, parseTime } from '@/utils/timeUtils'
+import { Alarm } from '@/models/types'
+import { parseTime } from '@/utils/timeUtils'
 import { EventEmitter } from 'events'
 
 class AlarmService extends EventEmitter {
-    
+    private currentTime: Date
+    private alarms: Alarm[]
+
     constructor() {
         super()
+        this.currentTime = new Date()
+        this.alarms = []
+    }
+
+    private calculateNextAlarmTime(prayerTime: string): Date {
+        const prayerDateTime = parseTime(prayerTime)
+
+        if (prayerDateTime < this.currentTime) {
+            prayerDateTime.setDate(prayerDateTime.getDate() + 1)
+        }
+
+        return prayerDateTime
     }
 
     public setAlarm(prayerName: string, prayerTime: string) {
-        const prayerDateTime = parseTime(prayerTime)
-        const currentTime = getCurrentTime()
-        const timeDifference = prayerDateTime.getTime() - currentTime.getTime()
+        this.currentTime = new Date()
 
-        console.log(`Current time: ${currentTime}`)
-        console.log(`Prayer time for ${prayerName}: ${prayerDateTime}`)
-        console.log(`Time difference: ${timeDifference} milliseconds`)
+        const alarmTime = this.calculateNextAlarmTime(prayerTime)
+        const timeDifference = alarmTime.getTime() - this.currentTime.getTime()
 
-        if (timeDifference > 0) {
-            setTimeout(() => {
-                this.emit('alarm', prayerName)
-            }, timeDifference) // Set alarm after the remaining time
-        } else {
-            console.log(`The prayer time for ${prayerName} has already passed. No alarm set.`)
+        // console.log(`Current time: ${this.currentTime}`)
+        // console.log(`Alarm set for ${prayerName} at ${alarmTime}`)
+        // console.log(`Time difference: ${timeDifference} milliseconds`)
+
+        this.alarms.push({
+            prayerName,
+            time: alarmTime.toISOString(),
+            status: 'pending',
+        })
+
+        setTimeout(() => {
+            this.emit('alarm', prayerName)
+            this.updateAlarmStatus(prayerName, 'completed')
+        }, timeDifference)
+    }
+
+    public getAlarms(): Alarm[] {
+        return this.alarms
+    }
+
+    public clearAlarms() {
+        this.alarms = []
+    }
+
+    private updateAlarmStatus(
+        prayerName: string,
+        status: 'completed' | 'next day'
+    ) {
+        const alarm = this.alarms.find(
+            (alarm) => alarm.prayerName === prayerName
+        )
+        if (alarm) {
+            alarm.status = status
         }
     }
 }

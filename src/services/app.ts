@@ -1,13 +1,11 @@
-import { City } from "@/models/types"
-import AlarmService from "./alarm/AlarmService"
-import CityService from "./city/CityService"
-import PrayerTimeService from "./prayertime/PrayerTimeService"
-import readline from "readline"
-import nodeNotifier from "node-notifier"
-import { parseTime } from "@/utils/timeUtils"
+import { City } from '@/models/types'
+import AlarmService from './alarm/AlarmService'
+import CityService from './city/CityService'
+import PrayerTimeService from './prayertime/PrayerTimeService'
+import nodeNotifier from 'node-notifier'
+import prompts from 'prompts'
 
 class App {
-
     private cityService: CityService
     private prayerTimeService: PrayerTimeService
     private alarmService: AlarmService
@@ -18,76 +16,165 @@ class App {
         this.alarmService = new AlarmService()
     }
 
+    private async showWelcomeMessage() {
+        console.clear()
+
+        console.log(`
+        ============================================================
+        |                  WELCOME TO PRAYER REMINDER              |
+        |                                                          |
+        |           Author: ardwiinoo                              |
+        |           Description: Reminder for prayer times         |
+        ============================================================
+        `)
+
+        const response = await prompts({
+            type: 'confirm',
+            name: 'continue',
+            message: 'Would you like to continue?',
+            initial: true,
+        })
+
+        if (!response.continue) {
+            console.log('Goodbye!')
+            process.exit(0)
+        }
+    }
+
+    public async selectCity(): Promise<City> {
+        const cities: City[] = await this.cityService.getCities()
+
+        const response = await prompts({
+            type: 'select',
+            name: 'selectedCityId',
+            message: 'Select your city',
+            choices: cities.map((city) => ({
+                title: city.lokasi,
+                value: city.id,
+            })),
+            initial: cities.findIndex((city) => city.id === '1414'), // Menggunakan indeks sebagai initial
+        })
+
+        if (!response.selectedCityId) {
+            throw new Error('No city selected')
+        }
+
+        const selectedCity = cities.find(
+            (city) => city.id === response.selectedCityId
+        )
+
+        if (!selectedCity) {
+            throw new Error('Selected city not found')
+        }
+
+        return selectedCity
+    }
+
+    private handleNotifications() {
+        this.alarmService.on('alarm', (prayerName: string) => {
+            nodeNotifier.notify({
+                title: 'Prayer Reminder',
+                message: `It's time for ${prayerName} prayer.`,
+                sound: 'ping',
+                wait: true,
+                actions: ['Dismiss', 'Snooze'],
+            })
+        })
+    }
+
+    private keepProcessAlive() {
+        setInterval(() => {}, 1000)
+
+        process.on('SIGINT', () => {
+            console.log('\nAlarms cancelled. Exiting...')
+            process.exit()
+        })
+    }
+
+    private async scheduleAlarms(prayerTimes: any) {
+        const prayerNames = ['Subuh', 'Dzuhur', 'Ashar', 'Maghrib', 'Isya']
+        const prayerTimesList = [
+            prayerTimes.jadwal.subuh,
+            prayerTimes.jadwal.dzuhur,
+            prayerTimes.jadwal.ashar,
+            prayerTimes.jadwal.maghrib,
+            prayerTimes.jadwal.isya,
+        ]
+
+        prayerTimesList.forEach((time: string, index: number) => {
+            this.alarmService.setAlarm(prayerNames[index]!, time)
+        })
+
+        console.log(
+            "Alarms are set. You'll receive a notification when it's time."
+        )
+
+        this.handleNotifications()
+        await this.showMenu()
+    }
+
+    private async showMenu() {
+        const response = await prompts({
+            type: 'select',
+            name: 'option',
+            message: 'What would you like to do?',
+            choices: [
+                { title: 'Show alarms', value: 'show' },
+                { title: 'Change city', value: 'change' },
+                { title: 'Quit', value: 'quit' },
+            ],
+        })
+
+        if (response.option === 'show') {
+            this.showAlarms()
+            await this.showMenu()
+        } else if (response.option === 'change') {
+            await this.run()
+        } else if (response.option === 'quit') {
+            console.log('Goodbye!')
+            process.exit(0)
+        }
+    }
+
+    private showAlarms() {
+        const alarms = this.alarmService.getAlarms()
+
+        console.log('\nCurrent Alarms:')
+        console.log('--------------------------------------------------')
+        console.log('| No | Prayer   | Time                | Status     |')
+        console.log('--------------------------------------------------')
+        alarms.forEach((alarm, index) => {
+            console.log(
+                `| ${String(index + 1).padEnd(2)} | ${alarm.prayerName.padEnd(
+                    8
+                )} | ${new Date(
+                    alarm.time
+                ).toLocaleString()} | ${alarm.status.padEnd(10)} |`
+            )
+        })
+        console.log('--------------------------------------------------')
+    }
+
     public async run() {
         try {
-            const cities: City[] = await this.cityService.getCities()
+            await this.showWelcomeMessage()
 
-            console.log('Available Cities:')
-            cities.forEach(city => console.log(`${city.id}. ${city.lokasi}`))
+            const selectedCity = await this.selectCity()
+            this.alarmService.clearAlarms()
 
-            const rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout
-            })
+            const currentDate = new Date().toISOString().split('T')[0]
+            const prayerTimes = await this.prayerTimeService.fetchPrayerTimes(
+                selectedCity.id,
+                currentDate!
+            )
 
-            rl.question('Enter the city ID you want to set reminders for: ', async (cityId) => {
-                const selectedCityId = cityId.trim() || "1414" // klaten
+            // console.log(
+            //     `Prayer times for ${prayerTimes.lokasi} on ${prayerTimes.jadwal.tanggal}:`
+            // )
+            // console.log(prayerTimes.jadwal)
 
-                let currentDate = new Date()
-                let today = currentDate.toISOString().split('T')[0]
-                let prayerTimes = await this.prayerTimeService.fetchPrayerTimes(selectedCityId, today!)
-
-                console.log(`Prayer times for ${prayerTimes.lokasi} on ${prayerTimes.jadwal.tanggal}:`)
-                console.log(prayerTimes.jadwal)
-
-                const prayerNames = ['Subuh', 'Dzuhur', 'Ashar', 'Maghrib', 'Isya'] // sholat yang dipilih
-                const prayerTimesList = [
-                  prayerTimes.jadwal.subuh,
-                  prayerTimes.jadwal.dzuhur,
-                  prayerTimes.jadwal.ashar,
-                  prayerTimes.jadwal.maghrib,
-                  prayerTimes.jadwal.isya
-                ]
-
-                prayerTimesList.forEach((time, index) => {
-                    let prayerTime = parseTime(time) // Pastikan ini dalam format 'HH:MM'
-
-                    // Konversi ke waktu lokal tanpa membuat format ISO
-                    let localTime = new Date()
-                    localTime.setHours(prayerTime.getHours(), prayerTime.getMinutes(), 0, 0)
-
-                    if (localTime < currentDate) {
-                        localTime.setDate(localTime.getDate() + 1)
-                        console.log(`${prayerNames[index]} prayer time has passed. Scheduling for next day at ${localTime.toISOString()}.`)
-                    } else {
-                        console.log(`${prayerNames[index]} prayer time is set for today at ${localTime.toISOString()}.`)
-                    }
-
-                    // Gunakan jam dan menit saja untuk set alarm
-                    const alarmTime = `${localTime.getHours()}:${localTime.getMinutes()}`
-                    this.alarmService.setAlarm(prayerNames[index]!, alarmTime)
-                })
-
-                console.log('Alarms are set. You can cancel with CTRL + C.')
-
-                this.alarmService.on('alarm', (prayerName: string) => {
-                    nodeNotifier.notify({
-                        title: 'Prayer Reminder',
-                        message: `It's time for ${prayerName} prayer.`,
-                        sound: true
-                    })
-                })
-
-                // Keep alive
-                setInterval(() => {}, 1000)
-
-                process.on('SIGINT', () => {
-                  console.log('\nAlarms cancelled. Exiting...')
-                  process.exit()
-                })
-
-                rl.close()
-            })
+            await this.scheduleAlarms(prayerTimes)
+            this.keepProcessAlive()
         } catch (err) {
             console.error((err as Error).message)
         }

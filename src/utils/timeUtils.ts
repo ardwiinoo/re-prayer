@@ -1,34 +1,19 @@
-export const getCurrentTime = (): Date => {
-    return new Date()
-}
-
 export const parseTime = (time: string): Date => {
-    let hours: number | undefined, minutes: number | undefined
-
-    if (time.includes('T')) {
-        // Check if it's an ISO format
-        const date = new Date(time)
-        hours = date.getHours()
-        minutes = date.getMinutes()
-    } else {
-        const parts = time.split(':').map(Number)
-        if (parts.length === 2) {
-            ;[hours, minutes] = parts
-        }
-    }
+    const [hours, minutes] = time.split(':')
 
     if (
         hours === undefined ||
         minutes === undefined ||
-        isNaN(hours) ||
-        isNaN(minutes)
+        isNaN(parseInt(hours)) ||
+        isNaN(parseInt(minutes))
     ) {
-        throw new Error(`Invalid time format: ${time}`)
+        throw new Error(`parseTime: Invalid time format: ${time}`)
     }
 
     const date = new Date()
-    date.setHours(hours, minutes, 0, 0)
+    date.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0)
 
+    // Jika waktu yang diatur sudah lewat, set untuk hari berikutnya
     if (date < new Date()) {
         date.setDate(date.getDate() + 1)
     }
